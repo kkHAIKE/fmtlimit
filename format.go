@@ -107,17 +107,17 @@ func (f *fmt) writePadding(n int) {
 // pad appends b to f.buf, padded on left (!f.minus) or right (f.minus).
 func (f *fmt) pad(b []byte) {
 	if !f.widPresent || f.wid == 0 {
-		f.buf.write(b)
+		f.buf.write(b, f.limit)
 		return
 	}
 	width := f.wid - utf8.RuneCount(b)
 	if !f.minus {
 		// left padding
 		f.writePadding(width)
-		f.buf.write(b)
+		f.buf.write(b, f.limit)
 	} else {
 		// right padding
-		f.buf.write(b)
+		f.buf.write(b, f.limit)
 		f.writePadding(width)
 	}
 }
@@ -125,17 +125,17 @@ func (f *fmt) pad(b []byte) {
 // padString appends s to f.buf, padded on left (!f.minus) or right (f.minus).
 func (f *fmt) padString(s string) {
 	if !f.widPresent || f.wid == 0 {
-		f.buf.writeString(s)
+		f.buf.writeString(s, f.limit)
 		return
 	}
 	width := f.wid - utf8.RuneCountInString(s)
 	if !f.minus {
 		// left padding
 		f.writePadding(width)
-		f.buf.writeString(s)
+		f.buf.writeString(s, f.limit)
 	} else {
 		// right padding
-		f.buf.writeString(s)
+		f.buf.writeString(s, f.limit)
 		f.writePadding(width)
 	}
 }
@@ -604,9 +604,9 @@ func (f *fmt) fmtFloat(v float64, size int, verb rune, prec int) {
 		// Achieve this by writing the sign out and then padding the unsigned number.
 		// Zero padding is allowed only to the left.
 		if f.zero && !f.minus && f.widPresent && f.wid > len(num) {
-			f.buf.writeByte(num[0])
+			f.buf.writeByte(num[0], f.limit)
 			f.writePadding(f.wid - len(num))
-			f.buf.write(num[1:])
+			f.buf.write(num[1:], f.limit)
 			return
 		}
 		f.pad(num)
