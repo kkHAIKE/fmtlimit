@@ -5,10 +5,11 @@
 package fmtlimit
 
 import (
-	"internal/fmtsort"
 	"reflect"
 	"sync"
 	"unicode/utf8"
+
+	"github.com/kkHAIKE/fmtlimit/fmtsort"
 )
 
 // Strings for use with buffer.WriteString.
@@ -72,25 +73,39 @@ type GoStringer interface {
 // Use simple []byte instead of bytes.Buffer to avoid large dependency.
 type buffer []byte
 
-func (b *buffer) write(p []byte) {
+func (b *buffer) write(p []byte, limit int) {
 	*b = append(*b, p...)
+	if len(*b) > limit {
+		panic(limitReached{})
+	}
 }
 
-func (b *buffer) writeString(s string) {
+func (b *buffer) writeString(s string, limit int) {
 	*b = append(*b, s...)
+	if len(*b) > limit {
+		panic(limitReached{})
+	}
 }
 
-func (b *buffer) writeByte(c byte) {
+func (b *buffer) writeByte(c byte, limit int) {
+	if len(*b) >= limit {
+		panic(limitReached{})
+	}
 	*b = append(*b, c)
 }
 
-func (b *buffer) writeRune(r rune) {
+func (b *buffer) writeRune(r rune, limit int) {
+	if len(*b) >= limit {
+		panic(limitReached{})
+	}
 	*b = utf8.AppendRune(*b, r)
 }
 
 // pp is used to store a printer's state and is reused with sync.Pool to avoid allocations.
 type pp struct {
 	buf buffer
+
+	limit int
 
 	// arg holds the current item, as an interface{}.
 	arg any
@@ -120,12 +135,13 @@ var ppFree = sync.Pool{
 }
 
 // newPrinter allocates a new pp struct or grabs a cached one.
-func newPrinter() *pp {
+func newPrinter(limit int) *pp {
 	p := ppFree.Get().(*pp)
 	p.panicking = false
 	p.erroring = false
 	p.wrapErrs = false
-	p.fmt.init(&p.buf)
+	p.limit = limit
+	p.fmt.init(&p.buf, p.limit)
 	return p
 }
 

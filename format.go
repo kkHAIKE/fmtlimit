@@ -46,6 +46,8 @@ type fmt struct {
 	wid  int // width
 	prec int // precision
 
+	limit int
+
 	// intbuf is large enough to store %b of an int64 with a sign and
 	// avoids padding at the end of the struct on 32 bit architectures.
 	intbuf [68]byte
@@ -57,9 +59,10 @@ func (f *fmt) clearflags() {
 	f.prec = 0
 }
 
-func (f *fmt) init(buf *buffer) {
+func (f *fmt) init(buf *buffer, limit int) {
 	f.buf = buf
 	f.clearflags()
+	f.limit = limit
 }
 
 // writePadding generates n bytes of padding.
@@ -69,7 +72,16 @@ func (f *fmt) writePadding(n int) {
 	}
 	buf := *f.buf
 	oldLen := len(buf)
+	if oldLen >= f.limit {
+		panic(limitReached{})
+	}
 	newLen := oldLen + n
+	reached := false
+	if newLen > f.limit {
+		newLen = f.limit
+		n = newLen - oldLen
+		reached = true
+	}
 	// Make enough room for padding.
 	if newLen > cap(buf) {
 		buf = make(buffer, cap(buf)*2+n)
@@ -87,6 +99,9 @@ func (f *fmt) writePadding(n int) {
 		padding[i] = padByte
 	}
 	*f.buf = buf[:newLen]
+	if reached {
+		panic(limitReached{})
+	}
 }
 
 // pad appends b to f.buf, padded on left (!f.minus) or right (f.minus).
@@ -426,6 +441,10 @@ func (f *fmt) fmtSbx(s string, b []byte, digits string) {
 		}
 		// Encode each byte as two hexadecimal digits.
 		buf = append(buf, digits[c>>4], digits[c&0xF])
+	}
+	if len(buf) > f.limit {
+		*f.buf = buf[:f.limit]
+		panic(limitReached{})
 	}
 	*f.buf = buf
 	// Handle padding to the right.
